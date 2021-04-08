@@ -1,7 +1,7 @@
 # panorama-merger-wasm
 Panorama-merger using bracketed images for creating hdri's for wasm
 
-HDR stitching:
+HDR stitching of bracketed images:
 * import images
 * sift detector
 * homografie transformatie matrix berekenen
