@@ -8,7 +8,8 @@ Dependencies:
   - Vtk
 
 To compile:
+
   `cargo build`
   
 To compile and run:
-  cargo run
+  `cargo run`
