@@ -126,8 +126,8 @@ async fn main() -> std::io::Result<()> {
         .route("/tmp/{image_file}", web::get().to(get_image))
         //.route("/app/image", web::post().to(upload_pic))
     })
-    //.bind("94.224.240.235:80")?
-    .bind("192.168.0.148:80")?
+    .bind("127.0.0.1:8080")?
+    //.bind("192.168.0.148:80")?
     .run()
     .await
 }
