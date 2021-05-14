@@ -1,4 +1,4 @@
-# panorama-merger-wasm
+# panorama-merger
 Panorama-merger for creating hdri's for wasm
 
 Compilation instructions:
