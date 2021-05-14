@@ -14,3 +14,7 @@ To compile:
 To compile and run:
 
   `cargo run`
+
+usage:
+run the server, open browser and go to:
+http://localhost:8080/app/index.html
