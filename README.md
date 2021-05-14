@@ -12,4 +12,5 @@ To compile:
   `cargo build`
   
 To compile and run:
+
   `cargo run`
