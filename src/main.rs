@@ -1,5 +1,5 @@
-use actix_web::{App, get, Error, HttpResponse, HttpServer, web, error};
-use actix_web::http::{StatusCode, header::ContentType};
+use actix_web::{App, Error, HttpResponse, HttpServer, web, error};
+use actix_web::http::{StatusCode};
 use actix_multipart::Multipart;
 
 use futures::{StreamExt, TryStreamExt};
@@ -7,20 +7,13 @@ use std::io::Write;
 use std::io::Cursor;
 use std::sync::Mutex;
 
-
-use actix_web::web::Bytes;
-
-use std::fs::File;
-use std::io::prelude::*;
-
 use opencv::prelude::*;
-use opencv::{imgcodecs, core, stitching};
+use opencv::{imgcodecs, stitching};
 use opencv::core::*;
-use opencv::types::VectorOfMat;
 
 use serde::Deserialize;
 
-const imread_type: imgcodecs::ImreadModes = imgcodecs::ImreadModes::IMREAD_COLOR;
+const IMREAD_TYPE: imgcodecs::ImreadModes = imgcodecs::ImreadModes::IMREAD_COLOR;
 
 async fn upload_pic(mut payload: Multipart, data: web::Data<AppState>) -> Result<HttpResponse, Error> {
     
@@ -30,10 +23,7 @@ async fn upload_pic(mut payload: Multipart, data: web::Data<AppState>) -> Result
     let mut stitcher = stitching::Stitcher::create(stitching::Stitcher_Mode::PANORAMA).unwrap();
 
     while let Ok(Some(mut field)) = payload.try_next().await {
-        let content_type = field.content_disposition().unwrap();
-        let filename = content_type.get_filename().unwrap();
-       
-        let mut f: Result<Cursor<Vec<u8>>, error::BlockingError<&str>> = web::block(|| Ok(Cursor::new(Vec::new())))
+        let f: Result<Cursor<Vec<u8>>, error::BlockingError<&str>> = web::block(|| Ok(Cursor::new(Vec::new())))
             .await;
         let mut f = f.unwrap();
 
@@ -44,13 +34,13 @@ async fn upload_pic(mut payload: Multipart, data: web::Data<AppState>) -> Result
         }
 
         println!("GOT PICTURE");
-        let mut f = f.into_inner();
-        let mut picture: Vector<u8> = Vector::from_iter(f);
-        let mut picture: Mat = imgcodecs::imdecode(&picture, imread_type as i32).unwrap();
+        let f = f.into_inner();
+        let picture: Vector<u8> = Vector::from_iter(f);
+        let picture: Mat = imgcodecs::imdecode(&picture, IMREAD_TYPE as i32).unwrap();
         images.push(picture);
     }
     let check = stitcher.stitch(&images, &mut panorama);
-    let check2 = match check {
+    let _check2 = match check {
         Ok(file) => file,
         Err(error) => panic!("kutprobleem!: {:?}", error),
     };
@@ -89,7 +79,9 @@ async fn upload_pic(mut payload: Multipart, data: web::Data<AppState>) -> Result
 
 async fn get_image(info: web::Path<Info>) -> Result<HttpResponse, Error> {
     let pathname = format!("../tmp/{}", info.name);
-    let byte_array: &[u8] = load_file::load_bytes!(&pathname[..]);
+    let byte_array: &[u8] = panorama_merger::load_bytes!(&pathname[..]);
+
+    //let byte_array2 = include_bytes!(&pathname[..]);
     Ok(
         HttpResponse::build(StatusCode::OK)
             .content_type("image/jpeg")
@@ -105,7 +97,6 @@ async fn home() -> Result<HttpResponse, Error> {
     )
 
 }
-
 
 #[derive(Deserialize)]
 struct Info {
@@ -131,12 +122,12 @@ async fn main() -> std::io::Result<()> {
                 .route("/index.html", web::get().to(home))
                 .route("/image/{name}", web::get().to(get_image))
                 .route("/index.html", web::post().to(upload_pic))
-                //.route("/tmp/{name}", web::get().to(get_image))
         )
         .route("/tmp/{image_file}", web::get().to(get_image))
         //.route("/app/image", web::post().to(upload_pic))
     })
-    .bind("127.0.0.1:8080")?
+    //.bind("94.224.240.235:80")?
+    .bind("192.168.0.148:80")?
     .run()
     .await
 }
