@@ -1,4 +1,4 @@
-use actix_web::{App, Error, HttpResponse, HttpServer, web, error, get};
+use actix_web::{App, Error, HttpResponse, HttpServer, web, error};
 use actix_web::http::{StatusCode};
 use actix_multipart::Multipart;
 
@@ -8,11 +8,13 @@ use std::io::Cursor;
 use std::sync::Mutex;
 use std::collections::HashMap;
 
+use std::env;
+
 use opencv::prelude::*;
 use opencv::{imgcodecs, stitching};
 use opencv::core::*;
 
-use serde::Deserialize;
+//use serde::Deserialize;
 
 const IMREAD_TYPE: imgcodecs::ImreadModes = imgcodecs::ImreadModes::IMREAD_COLOR;
 
@@ -62,6 +64,11 @@ async fn upload_pic(mut payload: Multipart, data: web::Data<AppState>) -> Result
 
     let mut counter = data.counter.lock().unwrap();
     *counter += 1;
+
+    if *counter >30 {
+        *counter = 1;
+    }
+
     let image_id: u32 = *counter;
     drop(counter);
 
@@ -99,13 +106,9 @@ async fn upload_pic(mut payload: Multipart, data: web::Data<AppState>) -> Result
 }
 async fn get_image(info: web::Path<u32>, data: web::Data<AppState>) -> Result<HttpResponse, Error> {
     let image_index: u32 = info.into_inner();
-    let pathname = format!("../tmp/panorama{}.jpg", image_index);
-    //let byte_array: &[u8] = panorama_merger::load_bytes!(&pathname[..]);
-
 
     let images_hashmap = data.image_buffers.lock().unwrap();
     let byte_array = images_hashmap[&image_index].to_vec();
-    //let byte_array2 = include_bytes!(&pathname[..]);
     Ok(
         HttpResponse::build(StatusCode::OK)
             .content_type("image/jpeg")
@@ -122,10 +125,10 @@ async fn home() -> Result<HttpResponse, Error> {
 
 }
 
-#[derive(Deserialize)]
+/*#[derive(Deserialize)]
 struct Info {
     name: String,
-}
+}*/
 
 struct AppState{
     counter: Mutex<u32>,
@@ -134,6 +137,9 @@ struct AppState{
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+
+    let args: Vec<String> = env::args().collect();
+    println!("{:?}", args);
     let counter = web::Data::new(AppState {
         counter: Mutex::new(0),
         image_buffers: Mutex::new(HashMap::new())
@@ -149,10 +155,12 @@ async fn main() -> std::io::Result<()> {
                 .route("/image/{number}", web::get().to(get_image))
                 .route("/index.html", web::post().to(upload_pic))
         )
-        .route("/tmp/{image_file}", web::get().to(get_image))
+        .route("/", web::to(home))
+        //.route("/tmp/{image_file}", web::get().to(get_image))
         //.route("/app/image", web::post().to(upload_pic))
     })
-    .bind("127.0.0.1:8080")?
+    .bind(&(args[1])[..])?
+    //.bind("127.0.0.1:8080")?
     //.bind("192.168.0.148:80")?
     .run()
     .await
