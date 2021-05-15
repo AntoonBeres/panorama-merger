@@ -5,7 +5,7 @@ Compilation instructions:
 
 Dependencies:
   - Rust (make sure latest version is installed with "rustup update")
-  - Vtk
+  - Vtk (install from your repositiries, on arch-linux: `sudo pacman -S vtk` 
 
 To compile:
 
