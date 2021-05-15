@@ -1,4 +1,4 @@
-use actix_web::{App, Error, HttpResponse, HttpServer, web, error};
+use actix_web::{App, Error, HttpResponse, HttpServer, web, error, get};
 use actix_web::http::{StatusCode};
 use actix_multipart::Multipart;
 
@@ -6,6 +6,7 @@ use futures::{StreamExt, TryStreamExt};
 use std::io::Write;
 use std::io::Cursor;
 use std::sync::Mutex;
+use std::collections::HashMap;
 
 use opencv::prelude::*;
 use opencv::{imgcodecs, stitching};
@@ -14,6 +15,18 @@ use opencv::core::*;
 use serde::Deserialize;
 
 const IMREAD_TYPE: imgcodecs::ImreadModes = imgcodecs::ImreadModes::IMREAD_COLOR;
+
+
+fn encode_to_buff<'a>(
+    ext: &str, 
+    img: &dyn ToInputArray, 
+    params: &Vector<i32> ) -> Result<Vector<u8>, &'a str>  {
+    
+        let mut buf: Vector<u8> = Vector::new();
+        imgcodecs::imencode(ext, img, &mut buf, params).expect("Houston, we have a problem");
+        Ok(buf)
+}
+
 
 async fn upload_pic(mut payload: Multipart, data: web::Data<AppState>) -> Result<HttpResponse, Error> {
     
@@ -49,12 +62,20 @@ async fn upload_pic(mut payload: Multipart, data: web::Data<AppState>) -> Result
 
     let mut counter = data.counter.lock().unwrap();
     *counter += 1;
-    let filename = format!("tmp/panorama{}.jpg", counter);
+    let image_id: u32 = *counter;
+    drop(counter);
+
+    let mut images_hashmap = data.image_buffers.lock().unwrap();
+
+
+    let buffer_succes =  web::block( move || encode_to_buff(".jpg", &panorama, &flags)).await.unwrap();
+
+
+    images_hashmap.insert(image_id, Box::new(buffer_succes));
+    drop(images_hashmap);
     
-    let file_succes = web::block(move || imgcodecs::imwrite(&filename[..], &panorama, &flags)).await.unwrap();
     
-    let filename2 = format!("image/panorama{}.jpg", counter);
-    //home().await
+    let file_id = format!("image/{}", image_id);
     
     let html_body = format!("
     <!DOCTYPE html>
@@ -69,18 +90,21 @@ async fn upload_pic(mut payload: Multipart, data: web::Data<AppState>) -> Result
       <body>
         <img src=\"{}\">
       </body>
-    </html>", &filename2);
+    </html>", &file_id);
 
     Ok(
         HttpResponse::build(StatusCode::OK)
             .body(html_body)
     )
 }
+async fn get_image(info: web::Path<u32>, data: web::Data<AppState>) -> Result<HttpResponse, Error> {
+    let image_index: u32 = info.into_inner();
+    let pathname = format!("../tmp/panorama{}.jpg", image_index);
+    //let byte_array: &[u8] = panorama_merger::load_bytes!(&pathname[..]);
 
-async fn get_image(info: web::Path<Info>) -> Result<HttpResponse, Error> {
-    let pathname = format!("../tmp/{}", info.name);
-    let byte_array: &[u8] = panorama_merger::load_bytes!(&pathname[..]);
 
+    let images_hashmap = data.image_buffers.lock().unwrap();
+    let byte_array = images_hashmap[&image_index].to_vec();
     //let byte_array2 = include_bytes!(&pathname[..]);
     Ok(
         HttpResponse::build(StatusCode::OK)
@@ -104,13 +128,15 @@ struct Info {
 }
 
 struct AppState{
-    counter: Mutex<u32>
+    counter: Mutex<u32>,
+    image_buffers: Mutex<HashMap<u32, Box<Vector<u8> > > >
 }
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let counter = web::Data::new(AppState {
         counter: Mutex::new(0),
+        image_buffers: Mutex::new(HashMap::new())
     });
     HttpServer::new(move || {
         App::new()
@@ -120,7 +146,7 @@ async fn main() -> std::io::Result<()> {
             web::scope("/app")
                 // ...so this handles requests for `GET /app/index.html`
                 .route("/index.html", web::get().to(home))
-                .route("/image/{name}", web::get().to(get_image))
+                .route("/image/{number}", web::get().to(get_image))
                 .route("/index.html", web::post().to(upload_pic))
         )
         .route("/tmp/{image_file}", web::get().to(get_image))
