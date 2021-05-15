@@ -11,9 +11,9 @@ To compile:
 
   `cargo build`
   
-To compile and run:
+To compile and run (for testing):
 
-  `cargo run`
+  `cargo run 127.0.0.1:8080`
 
 usage:
 run the server, open browser and go to:
